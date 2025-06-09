@@ -203,7 +203,7 @@ public class DclztypeServiceImpl implements DclztypeService {
 		return dclztypeMapper.allEmplVacationAdmin(map);
 	}
 
-	// 전사 연차현황 목록 총 갯수
+	// 전사 연차현황 목록 총 갯수 수정
 	public int allEmplVacationAdminCnt() {
 		return dclztypeMapper.allEmplVacationAdminCnt();
 	}
