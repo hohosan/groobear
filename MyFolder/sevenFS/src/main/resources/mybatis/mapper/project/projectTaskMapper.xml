@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.or.ddit.sevenfs.mapper.project.ProjectTaskMapper">
+
+
+	<resultMap id="projectTaskResultMap" type="kr.or.ddit.sevenfs.vo.project.ProjectTaskVO">
+	  <id property="taskNo" column="TASK_NO"/>
+	  <result property="prjctNo" column="PRJCT_NO"/>
+	  <result property="taskCn" column="TASK_CN"/>
+	  <result property="taskGrad" column="TASK_GRAD"/>
+	  <result property="priort" column="PRIORT"/>
+	  <result property="taskSttus" column="TASK_STTUS"/>
+	  <result property="progrsrt" column="PROGRSRT"/>
+	  <result property="upperTaskNo" column="UPPER_TASK_NO"/>
+	  <result property="taskDaycnt" column="TASK_DAYCNT"/>
+	  <result property="atchFileNo" column="ATCH_FILE_NO"/>
+	  <result property="chargerEmpno" column="CHARGER_EMPNO"/>
+	  <result property="chargerEmpNm" column="CHARGER_EMP_NM"/>
+	  <result property="parentTaskNm" column="PARENT_TASK_NM"/>
+
+	</resultMap>
+
+	
+	<update id="nullifyUpperTaskReferences" parameterType="long">
+  UPDATE PROJECT_TASK
+  SET UPPER_TASK_NO = NULL
+  WHERE PRJCT_NO = #{prjctNo}
+</update>
+	
+	
+	
+   <insert id="insertProjectTaskBatch">
+	 <selectKey resultType="int" order="BEFORE" keyProperty="taskNo">
+		SELECT SEQ_PROJECT.NEXTVAL FROM DUAL
+	</selectKey>
+    INSERT INTO project_task (
+        progrsrt,
+        task_sttus,
+        atch_file_no,
+        task_begin_dt,
+        task_daycnt,
+        task_end_dt,
+        task_no,
+        prjct_no,
+        upper_task_no,
+        charger_empno,
+        task_nm,
+        task_cn,
+        priort,
+        task_grad
+    )
+    VALUES
+    <foreach collection="list" item="task" separator=",">
+        (
+            #{task.progrsrt},
+            #{task.taskSttus},
+            #{task.atchFileNo},
+            #{task.taskBeginDt},
+            #{task.taskDaycnt},
+            #{task.taskEndDt},
+            #{task.taskNo},
+            #{task.prjctNo},
+            #{task.upperTaskNo},
+            #{task.chargerEmpno},
+            #{task.taskNm},
+            #{task.taskCn},
+            #{task.priort},
+            #{task.taskGrad}
+        )
+    </foreach>
+</insert>
+
+
+    <insert id="insertProjectTask" parameterType="kr.or.ddit.sevenfs.vo.project.ProjectTaskVO">
+        <selectKey resultType="int" order="BEFORE" keyProperty="taskNo">
+            SELECT SEQ_PROJECT_TASK.NEXTVAL FROM DUAL
+        </selectKey>
+
+        INSERT INTO PROJECT_TASK (
+            TASK_NO,
+            PRJCT_NO,
+            TASK_NM,
+            CHARGER_EMPNO,
+            TASK_BEGIN_DT,
+            TASK_END_DT,
+            PRIORT,
+            TASK_GRAD,
+            TASK_CN,
+            TASK_STTUS,
+            PROGRSRT,
+            UPPER_TASK_NO,
+            TASK_DAYCNT,
+            ATCH_FILE_NO
+        ) VALUES (
+            #{taskNo},
+            #{prjctNo},
+            #{taskNm},
+            #{chargerEmpno},
+            #{taskBeginDt},
+            #{taskEndDt},
+            #{priort},
+            #{taskGrad},
+            #{taskCn},
+            #{taskSttus},
+            #{progrsrt},
+            #{upperTaskNo},
+            #{taskDaycnt},
+            #{atchFileNo, jdbcType=NUMERIC}
+        )
+    </insert>
+    
+    
+	<update id="updateTaskParent" parameterType="map">
+	    UPDATE project_task 
+	    SET upper_task_no = #{parentTaskNo}
+	    WHERE task_no = #{taskNo}
+	</update>
+
+	<!-- 프로젝트 번호로 업무 목록 조회 -->
+	<select id="selectProjectTasks" resultType="kr.or.ddit.sevenfs.vo.project.ProjectTaskVO" parameterType="int">
+	  SELECT 
+	    PT.TASK_NO,
+	    PT.PRJCT_NO,
+	    PT.TASK_NM,
+	    PT.CHARGER_EMPNO,
+	    E.EMPL_NM AS CHARGER_EMP_NM,
+	    PT.TASK_BEGIN_DT,
+	    PT.TASK_END_DT,
+	    PT.PRIORT,
+	    PT.TASK_GRAD,
+	    PT.TASK_CN,
+	    PT.TASK_STTUS,
+	    PT.PROGRSRT,
+	    PT.UPPER_TASK_NO,
+	    PT.TASK_DAYCNT,
+	    PT.ATCH_FILE_NO,
+	    PARENT.TASK_NM AS PARENT_TASK_NM
+	  FROM PROJECT_TASK PT
+	  LEFT JOIN EMPLOYEE E ON PT.CHARGER_EMPNO = E.EMPL_NO
+	  LEFT JOIN PROJECT_TASK PARENT ON PT.UPPER_TASK_NO = PARENT.TASK_NO
+	                            AND PT.PRJCT_NO = PARENT.PRJCT_NO
+	  WHERE PT.PRJCT_NO = #{prjctNo}
+	  ORDER BY PT.UPPER_TASK_NO NULLS FIRST, PT.TASK_NO
+	</select>
+	
+	<!-- 프로젝트 상세 업무 조회 -->
+	<select id="selectTaskById" resultMap="projectTaskResultMap" parameterType="long">
+	  SELECT 
+	    PT.TASK_NO,
+	    PT.PRJCT_NO,
+	    PT.TASK_NM,
+	    PT.TASK_CN,
+	    PT.TASK_BEGIN_DT,
+	    PT.TASK_END_DT,
+	    PT.TASK_GRAD,
+	    PT.PRIORT,
+	    PT.TASK_STTUS,
+	    PT.PROGRSRT,
+	    PT.UPPER_TASK_NO,
+	    PT.TASK_DAYCNT,
+	    PT.ATCH_FILE_NO,
+	    PT.CHARGER_EMPNO,
+	    E.EMPL_NM AS CHARGER_EMP_NM,
+	    PARENT.TASK_NM AS PARENT_TASK_NM
+	  FROM PROJECT_TASK PT
+		LEFT JOIN PROJECT_TASK PARENT 
+		  ON PT.UPPER_TASK_NO = PARENT.TASK_NO 
+		  AND PT.PRJCT_NO = PARENT.PRJCT_NO
+	  LEFT JOIN EMPLOYEE E ON PT.CHARGER_EMPNO = E.EMPL_NO
+	  WHERE PT.TASK_NO = #{taskNo}
+	</select>
+
+
+
+	
+	<update id="updateTask">
+	  UPDATE PROJECT_TASK
+	  SET
+	    TASK_NM = #{taskNm},
+	    TASK_CN = #{taskCn},
+	    TASK_BEGIN_DT = #{taskBeginDt},
+	    TASK_END_DT = #{taskEndDt},
+	    TASK_GRAD = #{taskGrad},
+	    PRIORT = #{priort},
+	    CHARGER_EMPNO = #{chargerEmpno},
+	    TASK_STTUS = #{taskSttus},
+	    PROGRSRT = #{progrsrt},
+	    UPPER_TASK_NO = #{upperTaskNo},
+	    TASK_DAYCNT = #{taskDaycnt},
+	    ATCH_FILE_NO = #{atchFileNo}
+	  WHERE TASK_NO = #{taskNo}
+	</update>
+
+
+ 	<!-- 프로젝트 업무 삭제 -->
+	 <delete id="deleteTask" parameterType="long">
+	  DELETE FROM PROJECT_TASK WHERE TASK_NO = #{taskNo}
+	</delete>
+	
+	<!-- 프로젝트를 삭제할때 진행하는 업무 삭제  -->
+	<delete id="deleteTasksByProjectNo" parameterType="long">
+	  DELETE FROM PROJECT_TASK WHERE PRJCT_NO = #{prjctNo}
+	</delete>
+
+	<delete id="deleteProjectTasksByProject" parameterType="long">
+	  DELETE FROM PROJECT_TASK WHERE PRJCT_NO = #{prjctNo}
+	</delete>
+	
+	<delete id="deleteProjectParticipants" parameterType="int">
+    DELETE FROM PROJECT_EMP
+    WHERE PRJCT_NO = #{prjctNo}
+	</delete>
+	
+	
+	 <!-- 하위 업무 개수 조회 -->
+	<select id="countChildTasks" resultType="int" parameterType="long">
+	    SELECT COUNT(*)
+	    FROM PROJECT_TASK
+	    WHERE UPPER_TASK_NO = #{parentTaskNo}
+	</select>
+
+	<select id="selectTaskCardsByProjectNo" resultType="kr.or.ddit.sevenfs.vo.project.KanbanTaskVO">
+	  SELECT
+	    PT.TASK_NO,
+	    PT.TASK_NM,
+	    PT.TASK_CN,
+	    PT.TASK_BEGIN_DT,
+	    PT.TASK_END_DT,
+	    PT.TASK_GRAD,
+	    PT.TASK_STTUS,
+	    PT.PROGRSRT,
+	    PT.TASK_DAYCNT,
+	    PT.UPPER_TASK_NO,
+	    PT.CHARGER_EMPNO,
+	    E.EMPL_NM AS CHARGER_EMP_NM,
+	    PT.ATCH_FILE_NO,
+	    PT.PRIORT
+	  FROM PROJECT_TASK PT
+	  LEFT JOIN EMPLOYEE E ON PT.CHARGER_EMPNO = E.EMPL_NO
+	  WHERE PT.PRJCT_NO = #{prjctNo}
+	  ORDER BY PT.TASK_NO ASC
+	</select>
+
+	<update id="updateTaskStatus">
+	  UPDATE PROJECT_TASK
+	  SET TASK_STTUS = #{status}
+	  WHERE TASK_NO = #{taskId}
+	</update>
+
+   <select id="selectTasksByProject" parameterType="int" resultMap="projectTaskResultMap">
+	  SELECT 
+	    PT.TASK_NO,
+	    PT.PRJCT_NO,
+	    PT.TASK_NM,
+	    PT.TASK_CN,
+	    PT.TASK_BEGIN_DT,
+	    PT.TASK_END_DT,
+	    PT.PRIORT,
+	    PT.TASK_GRAD,
+	    PT.TASK_STTUS,
+	    PT.PROGRSRT,
+	    PT.TASK_DAYCNT,
+	    PT.UPPER_TASK_NO,
+	    PT.CHARGER_EMPNO,
+	    E.EMPL_NM AS CHARGER_EMP_NM,
+	    PT.ATCH_FILE_NO
+	  FROM PROJECT_TASK PT
+	  LEFT JOIN EMPLOYEE E ON PT.CHARGER_EMPNO = E.EMPL_NO
+	  WHERE PT.PRJCT_NO = #{prjctNo}
+	  ORDER BY PT.TASK_NO
+	</select>
+	
+	<select id="selectCardById" resultType="kr.or.ddit.sevenfs.vo.project.KanbanTaskVO" parameterType="long">
+	  SELECT
+	    PT.TASK_NO,
+	    PT.TASK_NM,
+	    PT.TASK_CN,
+	    PT.TASK_BEGIN_DT,
+	    PT.TASK_END_DT,
+	    PT.TASK_GRAD,
+	    PT.TASK_STTUS,
+	    PT.PROGRSRT,
+	    PT.TASK_DAYCNT,
+	    PT.UPPER_TASK_NO,
+	    PT.CHARGER_EMPNO,
+	    E.EMPL_NM AS CHARGER_EMP_NM,
+	    PT.ATCH_FILE_NO,
+	    PT.PRIORT
+	  FROM PROJECT_TASK PT
+	  LEFT JOIN EMPLOYEE E ON PT.CHARGER_EMPNO = E.EMPL_NO
+	  WHERE PT.TASK_NO = #{taskNo}
+	</select>
+	
+	
+	<update id="updateTaskSchedule" parameterType="kr.or.ddit.sevenfs.vo.project.ProjectTaskVO">
+	  UPDATE PROJECT_TASK
+	  SET 
+	    TASK_BEGIN_DT = #{taskBeginDt},
+	    TASK_END_DT = #{taskEndDt},
+	    PROGRSRT = #{progrsrt}
+	  WHERE TASK_NO = #{taskNo}
+	</update>
+
+		 <!-- 업무 담당자인지 확인 -->
+	<select id="countTasksByAssignee" resultType="int">
+	    SELECT COUNT(*)
+	    FROM PROJECT_TASK
+	    WHERE PRJCT_NO = #{prjctNo}
+	      AND CHARGER_EMPNO = #{empNo}
+	</select>
+	
+	<!-- 읽음처리 -->
+	<update id="uptAnsertReadingAt" parameterType="map">
+		UPDATE PROJECT_TASK
+		SET ANSERT_READDING_AT = #{ansertReadingAt}
+		WHERE TASK_NO = #{taskNo}
+	</update>
+	
+   
+</mapper>

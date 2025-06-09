@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.or.ddit.sevenfs.mapper.schedule.ScheduleMapper">
+
+<select id="scheduleList" parameterType="kr.or.ddit.sevenfs.vo.schedule.ScheduleVO"
+						  resultType="kr.or.ddit.sevenfs.vo.schedule.ScheduleVO">
+	SELECT  SCHDUL_NO
+		  , EMPL_NO
+		  , LBL_NO
+		  , SCHDUL_TY
+		  , SCHDUL_SJ
+		  , SCHDUL_CN
+		  , SCHDUL_BEGIN_DT
+		  , SCHDUL_END_DT
+		  , SCHDUL_PLACE
+		  , DEPT_CODE
+	FROM SCHEDULE
+	WHERE (SCHDUL_TY = '0' AND EMPL_NO = #{emplNo})
+	   OR (SCHDUL_TY = '1' AND DEPT_CODE = #{deptCode})
+	   OR (SCHDUL_TY = '2')
+</select>
+
+<select id="calendarLabeling" parameterType="hashmap" resultType="kr.or.ddit.sevenfs.vo.schedule.ScheduleVO">
+	SELECT  SCHDUL_NO
+		  , EMPL_NO
+		  , LBL_NO
+		  , SCHDUL_TY
+		  , SCHDUL_SJ
+		  , SCHDUL_CN
+		  , SCHDUL_BEGIN_DT
+		  , SCHDUL_END_DT
+		  , SCHDUL_PLACE
+		  , DEPT_CODE
+	FROM SCHEDULE
+	WHERE (
+		(SCHDUL_TY = '0' AND EMPL_NO = #{emplNo})
+	   OR (SCHDUL_TY = '1' AND DEPT_CODE = #{deptCode})
+	   OR (SCHDUL_TY = '2')
+	)
+	AND(
+		<choose>
+			<when test="schdulTyList != null and schdulTyList.size() > 0 and lblNoList != null and lblNoList.size() > 0">
+				(
+					schdul_ty IN
+	                <foreach collection="schdulTyList" item="ty" open="(" separator="," close=")">
+	                    #{ty}
+	                </foreach>
+	                OR
+	                lbl_no IN
+	                <foreach collection="lblNoList" item="no" open="(" separator="," close=")">
+	                    #{no}
+	                </foreach>
+	                <foreach collection="lblNoList" item="no">
+	                    <if test="no == 0">
+	                        OR (lbl_no IS NULL and SCHDUL_TY = '0')
+	                    </if>
+	                </foreach>
+				)
+			</when>
+			<when test="schdulTyList != null and schdulTyList.size() > 0">
+	            <!-- 타입 조건만 있는 경우 -->
+	            schdul_ty IN
+	            <foreach collection="schdulTyList" item="ty" open="(" separator="," close=")">
+	                #{ty}
+	            </foreach>
+	        </when>
+	        <when test="lblNoList != null and lblNoList.size() > 0">
+	            <!-- 라벨 조건만 있는 경우 -->
+	            (
+	                lbl_no IN
+	                <foreach collection="lblNoList" item="no" open="(" separator="," close=")">
+	                    #{no}
+	                </foreach>
+	                <foreach collection="lblNoList" item="no">
+	                    <if test="no == 0">
+	                        OR (lbl_no IS NULL and SCHDUL_TY = '0')
+	                    </if>
+	                </foreach>
+	            )
+	        </when>
+	        <otherwise>
+	            <!-- 둘 다 없는 경우: 아무것도 안가져온다 -->
+	            1=2
+	        </otherwise>
+		</choose>
+	)
+</select>
+
+<insert id="scheduleInsert" parameterType="kr.or.ddit.sevenfs.vo.schedule.ScheduleVO">
+	/*kr.or.ddit.sevenfs.mapper.schedule.ScheduleMapper.scheduleInsert 이걸 찍으면 log에서 찾기 편하다.*/
+	<selectKey resultType="int" order="BEFORE" keyProperty="schdulNo">
+		SELECT SEQ_SCHEDULE.NEXTVAL FROM DUAL  
+	</selectKey>
+INSERT INTO SCHEDULE (
+					    SCHDUL_NO
+					  , EMPL_NO
+					  <if test="lblNo!=null and lblNo!='' and lblNo!=0">
+						 , LBL_NO
+					  </if>
+					   , SCHDUL_TY
+					   , SCHDUL_SJ
+					   , SCHDUL_CN
+					   , SCHDUL_BEGIN_DT
+					   , SCHDUL_END_DT
+					   , DEPT_CODE
+					  )
+			VALUES(
+				  #{schdulNo}
+				, #{emplNo}
+				<if test="lblNo!=null and lblNo!='' and lblNo!=0">
+					, #{lblNo}
+				</if>
+				, #{schdulTy}
+				, #{schdulSj}
+				, #{schdulCn}
+				, #{schdulBeginDt}
+				, #{schdulEndDt}
+				, #{deptCode}
+			)
+</insert>
+<update id="scheduleUpdate" parameterType="kr.or.ddit.sevenfs.vo.schedule.ScheduleVO">
+	UPDATE schedule
+	SET
+		<if test="lblNo!=null and lblNo!='' and lblNo!=0">
+	    	lbl_no = #{lblNo},
+		</if>
+		<if test="lblNo==null or lblNo=='' or lblNo==0">
+	    	lbl_no = null,
+		</if>
+	      schdul_ty = #{schdulTy}
+	    , schdul_sj = #{schdulSj}
+	    , schdul_cn = #{schdulCn}
+	    , schdul_begin_dt = #{schdulBeginDt}
+	    , schdul_end_dt = #{schdulEndDt}
+	    , schdul_place = #{schdulPlace}
+	WHERE
+	    schdul_no = #{schdulNo}
+</update>
+
+<delete id="delCalendar" parameterType="kr.or.ddit.sevenfs.vo.schedule.ScheduleVO">
+	DELETE FROM SCHEDULE
+	WHERE SCHDUL_NO = #{schdulNo}
+</delete>
+<update id="delLabelFromSchdule" parameterType="kr.or.ddit.sevenfs.vo.schedule.ScheduleVO">
+	UPDATE schedule
+	SET lbl_no = null
+	WHERE lbl_no = #{lblNo}
+</update>
+
+<select id="getEmplList" parameterType="String" resultType="kr.or.ddit.sevenfs.vo.organization.EmployeeVO">
+SELECT
+    empl_no
+FROM
+    employee
+WHERE DEPT_CODE = #{deptCode}
+</select>
+<select id="getEmplAllList" resultType="kr.or.ddit.sevenfs.vo.organization.EmployeeVO">
+SELECT
+    empl_no
+FROM
+    employee
+</select>
+
+</mapper>

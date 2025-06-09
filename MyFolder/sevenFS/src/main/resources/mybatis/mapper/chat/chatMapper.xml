@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.or.ddit.sevenfs.mapper.chat.ChatMapper">
+    <update id="readChatMsg" parameterType="hashmap">
+        UPDATE CHAT_EMP
+        SET LAST_CNFIRM_NO = #{mssageSn}
+        WHERE CHTT_ROOM_NO = #{chttRoomNo}
+        AND EMPL_NO = #{emplNo}
+    </update>
+
+    <update id="updateRecentMsg" parameterType="chatVO">
+        UPDATE CHAT_ROOM
+        SET LAST_MSSAGE_NO = #{mssageSn}
+        WHERE CHTT_ROOM_NO = #{chttRoomNo}
+    </update>
+
+    <select id="chatList" resultType="chatRoomVO" parameterType="hashmap">
+        SELECT CR.CHTT_ROOM_NO, CHTT_ROOM_TY,
+               CHTT_ROOM_NM,
+               READ_COUNT,
+               LAST_MSSAGE_NO,
+               NVL(M.MSSAGE_CREAT_DT, CR.CHTT_CREAT_DT) AS CHTT_CREAT_DT,
+               M.MSSAGE_CN as LAST_MSG,
+               CE.EMPL_NO,
+               M.MSSAGE_TY,
+               E.EMPL_NM, E.PROFL_PHOTO_URL,
+               E.EMPL_NO as TARGET_EMPL_NO,
+               (SELECT CMMN_CODE_NM FROM COMMON_CODE WHERE CMMN_CODE_GROUP='DEPARTMENT' AND CMMN_CODE = E.DEPT_CODE AND USE_YN='Y') AS DEPT_NM,
+               (SELECT CMMN_CODE_NM FROM COMMON_CODE WHERE CMMN_CODE_GROUP='POSITION' AND CMMN_CODE = E.CLSF_CODE AND USE_YN='Y') AS CLSF_NM
+        FROM (SELECT B.CHTT_ROOM_NO, B.LAST_MSSAGE_NO, B.CHTT_CREAT_DT, B.CHTT_ROOM_NM, B.CHTT_ROOM_TY,
+             NVL(B.LAST_MSSAGE_NO - A.LAST_CNFIRM_NO, 0) as READ_COUNT
+
+              FROM CHAT_EMP A
+              LEFT JOIN CHAT_ROOM B ON (A.CHTT_ROOM_NO = B.CHTT_ROOM_NO)
+              WHERE EMPL_NO = #{emplNo}
+                /* 채팅방이 존재하는지 확인? */
+                <if test="chttRoomNo != null and chttRoomNo != 0">
+                    AND B.CHTT_ROOM_NO = #{chttRoomNo}
+                </if>
+                <if test="bUnRead != null and bUnRead == true">
+                    AND NVL(B.LAST_MSSAGE_NO - A.LAST_CNFIRM_NO, 0) > 0 /* 이거 쓰임 ?*/
+                </if>
+             ) CR
+        LEFT JOIN CHAT_EMP CE ON(CE.CHTT_ROOM_NO = CR.CHTT_ROOM_NO AND CE.EMPL_NO != #{emplNo})
+        LEFT JOIN EMPLOYEE E ON (E.EMPL_NO = CE.EMPL_NO)
+        LEFT JOIN CHAT_MESSAGE M ON (M.MSSAGE_SN = CR.LAST_MSSAGE_NO AND M.CHTT_ROOM_NO = CR.CHTT_ROOM_NO)
+        ORDER BY CHTT_CREAT_DT DESC
+    </select>
+
+    <insert id="createChatRoom" parameterType="chatRoomVO">
+        INSERT INTO CHAT_ROOM (CHTT_ROOM_NO, CHTT_ROOM_NM, CHTT_ROOM_TY)
+        VALUES(#{chttRoomNo}, #{chttRoomNm}, #{chttRoomTy})
+
+        <selectKey resultType="int" order="BEFORE" keyProperty="chttRoomNo">
+            SELECT SEQ_CHTT_ROOM.NEXTVAL FROM DUAL
+        </selectKey>
+    </insert>
+
+    <insert id="insertMessage" parameterType="chatVO">
+        <selectKey resultType="int" order="BEFORE" keyProperty="mssageSn">
+            SELECT NVL(MAX(MSSAGE_SN), 0) + 1 FROM CHAT_MESSAGE
+            WHERE CHTT_ROOM_NO = #{chttRoomNo}
+        </selectKey>
+
+        INSERT INTO CHAT_MESSAGE(CHTT_ROOM_NO, MSSAGE_SN, MSSAGE_WRITNG_EMPNO, MSSAGE_CN, MSSAGE_TY, MSSAGE_CREAT_DT)
+        VALUES (#{chttRoomNo}, #{mssageSn}, #{mssageWritngEmpno}, #{mssageCn}, #{mssageTy}, #{mssageCreatDt})
+    </insert>
+
+    <insert id="insertChatEmps" parameterType="chatRoomVO">
+        INSERT ALL
+            <foreach collection="emplNoList" item="emplNo" >
+                INTO CHAT_EMP(CHTT_ROOM_NO, EMPL_NO)
+                VALUES (#{chttRoomNo}, #{emplNo})
+            </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+
+
+    <select id="selectChatList" parameterType="hashmap" resultType="kr.or.ddit.sevenfs.vo.chat.ChatVO"><![CDATA[
+        SELECT MSSAGE_SN,
+               CE.LAST_CNFIRM_NO,
+               CASE WHEN CE.LAST_CNFIRM_NO < MSSAGE_SN THEN '1'
+                    ELSE '0'
+                   END as READ_STR,
+               M.MSSAGE_WRITNG_EMPNO,
+               CE.CHTT_ROOM_NO,
+               MSSAGE_CN, M.MSSAGE_CREAT_DT, MSSAGE_TY,
+               E.EMPL_NO, EMPL_NM, E.PROFL_PHOTO_URL,
+               (SELECT CMMN_CODE_NM FROM COMMON_CODE WHERE CMMN_CODE_GROUP='DEPARTMENT' AND CMMN_CODE = E.DEPT_CODE AND USE_YN='Y') AS DEPT_NM,
+               (SELECT CMMN_CODE_NM FROM COMMON_CODE WHERE CMMN_CODE_GROUP='POSITION' AND CMMN_CODE = E.CLSF_CODE AND USE_YN='Y') AS CLSF_NM
+        FROM CHAT_MESSAGE M
+        LEFT JOIN CHAT_EMP CE ON(CE.CHTT_ROOM_NO = M.CHTT_ROOM_NO AND CE.EMPL_NO != M.MSSAGE_WRITNG_EMPNO)
+        LEFT JOIN EMPLOYEE E ON (M.MSSAGE_WRITNG_EMPNO = E.EMPL_NO)
+        WHERE CE.CHTT_ROOM_NO = #{chttRoomNo}
+        ORDER BY MSSAGE_SN
+    ]]></select>
+
+    <select id="invalidChatRoom" resultType="integer">
+        SELECT C.CHTT_ROOM_NO
+        FROM (SELECT A.CHTT_ROOM_NO, A.EMPL_NO AS E1, B.EMPL_NO AS E2
+              FROM CHAT_EMP A
+                       LEFT JOIN CHAT_EMP B ON (A.CHTT_ROOM_NO = B.CHTT_ROOM_NO AND A.EMPL_NO != B.EMPL_NO)
+              WHERE A.EMPL_NO = #{myEmplNo}) C
+        WHERE C.E1 = #{myEmplNo}
+          AND C.E2 = #{targetEmplNo}
+    </select>
+
+    <select id="chatEmpNoList" resultType="int" parameterType="chatVO">
+        SELECT EMPL_NO
+        FROM CHAT_EMP
+        WHERE CHTT_ROOM_NO = #{chttRoomNo}
+        AND EMPL_NO != #{mssageWritngEmpno}
+    </select>
+
+</mapper>

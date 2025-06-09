@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="kr.or.ddit.sevenfs.mapper.setting.SettingMapper">
+    <insert id="insertSkillAuth" parameterType="string">
+        CALL pr_skill_auth(#{emplNo, mode=IN, jdbcType=VARCHAR})
+    </insert>
+
+    <!-- 부서의 사원 정보랑 권한 가져오기 -->
+    <select id="getSkillAuth" resultType="kr.or.ddit.sevenfs.vo.setting.SkillAuthVO">
+        SELECT EMPL_NO,
+               SKLL_CODE,
+               SKLL_AUTHOR_CODE,
+               CC.CMMN_CODE_NM as SKILL_NAME
+        FROM SKILL_AUTH SA
+        LEFT JOIN COMMON_CODE CC ON (SA.SKLL_CODE = CC.CMMN_CODE AND CC.CMMN_CODE_GROUP = 'SKILL')
+        WHERE EMPL_NO = #{emplNo}
+        ORDER BY SKLL_CODE
+    </select>
+
+    <update id="updateSkillAuth" parameterType="skillAuthVO">
+        UPDATE SKILL_AUTH
+        SET SKLL_AUTHOR_CODE = #{skllAuthorCode}
+        WHERE EMPL_NO = #{emplNo}
+          AND SKLL_CODE = #{skllCode}
+    </update>
+</mapper>
